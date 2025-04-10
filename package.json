@@ -18,6 +18,10 @@
   },
   "homepage": "https://github.com/AliAfiqUTEM/Exercise_BERR2243#readme",
   "dependencies": {
+    "express": "^5.1.0",
     "mongodb": "^6.15.0"
+  },
+  "devDependencies": {
+    "prettier": "3.5.3"
   }
 }

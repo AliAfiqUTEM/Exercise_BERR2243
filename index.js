@@ -1,87 +1,88 @@
+const express = require('express');
 const { MongoClient } = require('mongodb');
-const drivers = [
-    {
-        name: "ALI AFIQ",
-        vehicleType : "Sedan",
-        isAvailable : true,
-        rating: 4.8,
-    },
-    {
-        name: "AFIQ ALI",
-        vehicleType : "SUV",
-        isAvailable : true,
-        rating: 4.5,
-    }
-];
-console.log("BEFORE UPDATE NEW NAME OF DRIVERS");
-drivers.forEach((driver_name) => console.log(driver_name.name));
-const count = drivers.push({name:"AKMAL", vehicleType: "SUV", isAvailable: false, rating:4.9});
-console.log("");
-console.log("AFTER UPDATE NEW NAME OF DRIVERS");
-console.log("Number of drivers name:",count);
-console.log("");
-console.log("Drivers Name");
-drivers.forEach((driver_name) => console.log(driver_name.name));
-async function main() {
+const port = 3000;
+
+const app = express();
+app.use(express.json());
+
+let db;
+
+async function connectToMongoDB() {
+    console.log("Script is running...");
     const uri = "mongodb://localhost:27017";
     const client = new MongoClient(uri);
     try {
+        console.log("Attempting to connect to MongoDB...");
         await client.connect();
         console.log("Connected to MongoDB!");
-        const db = client.db("testDB");
-        const driver_name = db.collection("drivers");
-       //IF WANT TO DISPLAY ALL THE DRIVER NAMES SEPARATELY IN DATABASE//    
-        for (const driver of drivers) {
-            const result = await driver_name.insertOne(driver);
-            console.log(`New driver created with result: ${result.insertedId}`);
-        }
+       
+        db = client.db("testDB");
+    } catch (err) {
+        console.error("Error:", err);
+    }
+}
 
-        //CODES TO UPDATE DRIVERS RATING BY 0.1 FOR AFIQ ALI//
-        const update_result = await db.collection(`drivers`).updateOne(
-            { name:"AFIQ ALI"},
-            { $inc: {rating:0.1} }
+connectToMongoDB();
+    app.listen(port, () => {
+        console.log(`Server running on port ${port}`);
+    });
+
+//GET /rides - Fetch All Rides
+app.get('/rides',async (req, res) => {
+    try{
+        const rides = await db.collection('rides').find().toArray();
+        res.status(200).json(rides);
+    } catch (err) {
+        res.status(500).json ({ error : "Failed to fetch rides" });
+    }
+})
+
+//POST /rides - Create a new ride 
+app.post('/rides',async (req, res) => {
+    try{
+        const result  = await db.collection('rides').insertOne(req.body);
+        res.status(201).json({id: result.insertID });
+    } catch (err) {
+        res.status(400).json ({ error : "Invalid Ride Data" });
+    }
+})
+
+//PATCH /rides/:id -Update ride status
+app.patch('/rides/:id',async (req, res) => {
+    try{
+        const result = await db.collection('rides').updateOne(
+            { _id: new ObjectId(req.params.id) },
+            { $set: { status: req.body.status } },
         );
-        const updated_drivers = await db.collection("drivers").find({
-            name: "AFIQ ALI"
-        }).toArray();
-        console.log("Updated drivers:", updated_drivers);
+    
+        if (result.modified === 0) {
+            return res.status(404).json({ error: "Ride Not Found" });
+        } 
+        res.status(200).json({ updated: result.modifiedCount });
+    } catch (err) {
+        res.status(500).json ({ error : "Invalid Ride Id Or Data" });
+    }
+});
 
-        //CODES TO UPDATE DRIVERS RATING BY 0.1 FOR ALL THE DRIVERS//
-        /*const update_result = await db.collection("drivers").updateMany(
-            { name: {$in: ["AFIQ ALI","ALI AFIQ","AKMAL"]}},
-            { $inc: {rating:0.1} }
+//DELETE /rides/:id - Cancel A Ride
+app.delete('/rides/:id',async (req, res) => {
+    try{
+        const result = await db.collection('rides').deleteOne(
+            { _id: new ObjectId(req.params.id) },
         );
-        const updated_drivers = await db.collection("drivers").find({
-            name: "AFIQ ALI"
-        }).toArray();
-        console.log("Updated drivers:", updated_drivers);*/
+    
+        if (result.modified === 0) {
+            return res.status(404).json({ error: "Ride Not Found" });
+        } 
+        res.status(200).json({ deleted: result.deletedCount });
 
-        //CODES TO DELETE ALL THE UNAVAILABLE DRIVERS//
-        const delete_result = await db.collection('drivers').deleteMany({ isAvailable: false});
-        console.log("Deleted Drivers:",delete_result);
-
-        const availableDrivers = await db.collection("drivers").find({
-            isAvailable: true,
-            rating: { $gte: 4.5 }
-            }).toArray();
-            console.log("Available drivers:", availableDrivers);
-
-        //IF WANT TO DISPLAY ALL THE DRIVER NAMES COMBINED TOGETHER IN DATABASE//    
-        //const result = await driver_name.insertOne({drivers: drivers});//
-
-        //CODES TO FIND ALL THE AVAILABLE DRIVERS WITH RATING >= 4.5 //
-        /*const availableDrivers = await db.collection("drivers").find({
-            isAvailable: true,
-            rating: { $gte: 4.5 }
-            }).toArray();
-            console.log("Available drivers:", availableDrivers);*/
+    } catch (err) {
+        res.status(500).json ({ error : "Invalid Ride Id Or Data" });
+    }
+});
 
 
-    } finally 
-        {
-            await client.close();
-        }
-}main();
+
 
 /*When you see [object Object] in your console output, 
 it means that you're trying to display an object as a 
